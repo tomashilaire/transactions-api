@@ -15,6 +15,7 @@ src/main/java/org/example/transactionsapi/
 │   ├── port/
 │   │   ├── in/                                    # Driving ports (use-case interfaces)
 │   │   │   ├── CreateTransactionUseCase.java
+│   │   │   ├── UpsertTransactionUseCase.java
 │   │   │   ├── GetTransactionByIdUseCase.java
 │   │   │   ├── GetTransactionsByTypeUseCase.java
 │   │   │   └── GetTransactionSumUseCase.java
@@ -39,7 +40,7 @@ src/main/java/org/example/transactionsapi/
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/transactions` | Create a transaction (id in body) |
+| `POST` | `/transactions` | Create a transaction (id auto-generated, returned in response) |
 | `PUT`  | `/transactions/{id}` | Idempotent upsert (id in path) |
 | `GET`  | `/transactions/{id}` | Retrieve a transaction by id |
 | `GET`  | `/transactions/types/{type}` | List all transaction ids for a type |
