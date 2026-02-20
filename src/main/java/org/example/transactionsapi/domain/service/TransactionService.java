@@ -6,7 +6,7 @@ import org.example.transactionsapi.domain.port.in.CreateTransactionUseCase;
 import org.example.transactionsapi.domain.port.in.GetTransactionByIdUseCase;
 import org.example.transactionsapi.domain.port.in.GetTransactionsByTypeUseCase;
 import org.example.transactionsapi.domain.port.in.GetTransactionSumUseCase;
-import org.example.transactionsapi.domain.port.in.UpsertTransactionUseCase;
+import org.example.transactionsapi.domain.port.in.UpdateTransactionUseCase;
 import org.example.transactionsapi.domain.port.out.TransactionRepository;
 
 import java.util.List;
@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Free of framework dependencies — wired into Spring via BeanConfiguration.
  */
 public class TransactionService
-        implements CreateTransactionUseCase, UpsertTransactionUseCase, GetTransactionByIdUseCase,
+        implements CreateTransactionUseCase, UpdateTransactionUseCase, GetTransactionByIdUseCase,
                    GetTransactionsByTypeUseCase, GetTransactionSumUseCase {
 
     private final TransactionRepository repository;
@@ -35,7 +35,10 @@ public class TransactionService
     }
 
     @Override
-    public void upsertTransaction(Long id, double amount, String type, Long parentId) {
+    public void updateTransaction(Long id, double amount, String type, Long parentId) {
+        if (repository.findById(id).isEmpty()) {
+            throw new TransactionNotFoundException(id);
+        }
         repository.save(new Transaction(id, amount, type, parentId));
     }
 

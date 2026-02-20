@@ -11,7 +11,7 @@ import org.example.transactionsapi.domain.port.in.CreateTransactionUseCase;
 import org.example.transactionsapi.domain.port.in.GetTransactionByIdUseCase;
 import org.example.transactionsapi.domain.port.in.GetTransactionsByTypeUseCase;
 import org.example.transactionsapi.domain.port.in.GetTransactionSumUseCase;
-import org.example.transactionsapi.domain.port.in.UpsertTransactionUseCase;
+import org.example.transactionsapi.domain.port.in.UpdateTransactionUseCase;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,19 +33,19 @@ import java.util.List;
 public class TransactionController {
 
     private final CreateTransactionUseCase createTransaction;
-    private final UpsertTransactionUseCase upsertTransaction;
+    private final UpdateTransactionUseCase updateTransaction;
     private final GetTransactionByIdUseCase getById;
     private final GetTransactionsByTypeUseCase getByType;
     private final GetTransactionSumUseCase getSum;
 
     public TransactionController(
             CreateTransactionUseCase createTransaction,
-            UpsertTransactionUseCase upsertTransaction,
+            UpdateTransactionUseCase updateTransaction,
             GetTransactionByIdUseCase getById,
             GetTransactionsByTypeUseCase getByType,
             GetTransactionSumUseCase getSum) {
         this.createTransaction = createTransaction;
-        this.upsertTransaction = upsertTransaction;
+        this.updateTransaction = updateTransaction;
         this.getById = getById;
         this.getByType = getByType;
         this.getSum = getSum;
@@ -64,13 +64,13 @@ public class TransactionController {
 
     /**
      * PUT /transactions/{transactionId}
-     * Idempotent upsert: creates or fully replaces the transaction with the given id.
+     * Updates an existing transaction. Returns 404 if the id does not exist.
      */
     @PutMapping("/{transactionId}")
-    public ResponseEntity<StatusResponse> upsert(
+    public ResponseEntity<StatusResponse> update(
             @PathVariable Long transactionId,
             @RequestBody TransactionRequest request) {
-        upsertTransaction.upsertTransaction(transactionId, request.amount(), request.type(), request.parentId());
+        updateTransaction.updateTransaction(transactionId, request.amount(), request.type(), request.parentId());
         return ResponseEntity.ok(new StatusResponse("ok"));
     }
 

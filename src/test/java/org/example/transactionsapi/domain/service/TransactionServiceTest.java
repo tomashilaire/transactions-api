@@ -60,17 +60,30 @@ class TransactionServiceTest {
         assertThat(saved.parentId()).isEqualTo(99L);
     }
 
-    // --- upsertTransaction (PUT — caller-supplied id) ---
+    // --- updateTransaction (PUT — must exist) ---
 
     @Test
-    void shouldPersistTransactionWithExplicitId() {
-        service.upsertTransaction(42L, 100.0, "cars", null);
+    void shouldUpdateExistingTransaction() {
+        Transaction existing = new Transaction(42L, 100.0, "cars", null);
+        when(repository.findById(42L)).thenReturn(Optional.of(existing));
+
+        service.updateTransaction(42L, 200.0, "trucks", null);
 
         ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
         verify(repository).save(captor.capture());
 
         assertThat(captor.getValue().id()).isEqualTo(42L);
-        assertThat(captor.getValue().parentId()).isNull();
+        assertThat(captor.getValue().amount()).isEqualTo(200.0);
+        assertThat(captor.getValue().type()).isEqualTo("trucks");
+    }
+
+    @Test
+    void shouldThrowWhenUpdatingNonExistentTransaction() {
+        when(repository.findById(42L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.updateTransaction(42L, 200.0, "trucks", null))
+                .isInstanceOf(TransactionNotFoundException.class)
+                .hasMessageContaining("42");
     }
 
     // --- getTransactionById ---

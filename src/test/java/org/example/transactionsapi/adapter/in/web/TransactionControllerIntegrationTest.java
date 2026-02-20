@@ -104,36 +104,48 @@ class TransactionControllerIntegrationTest {
     // --- PUT /transactions/{id} ---
 
     @Test
-    void putTransaction_shouldReturnStatusOk() throws Exception {
-        mockMvc.perform(put("/transactions/1")
+    void putTransaction_shouldUpdateExistingTransaction() throws Exception {
+        MvcResult created = mockMvc.perform(post("/transactions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"amount": 100.0, "type": "payment"}
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("ok"));
-    }
+                .andReturn();
+        long id = Long.parseLong(created.getResponse().getContentAsString().replaceAll("[^0-9]", ""));
 
-    @Test
-    void putTransaction_shouldAcceptOptionalParentId() throws Exception {
-        mockMvc.perform(put("/transactions/2")
+        mockMvc.perform(put("/transactions/" + id)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"amount": 200.0, "type": "shopping", "parent_id": 1}
+                                {"amount": 250.0, "type": "updated"}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ok"));
+
+        mockMvc.perform(get("/transactions/" + id))
+                .andExpect(jsonPath("$.amount").value(250.0))
+                .andExpect(jsonPath("$.type").value("updated"));
+    }
+
+    @Test
+    void putTransaction_shouldReturn404ForNonExistentId() throws Exception {
+        mockMvc.perform(put("/transactions/9999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount": 100.0, "type": "payment"}
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").exists());
     }
 
     // --- GET /transactions/{id} ---
 
     @Test
     void getById_shouldReturnTransactionDetails() throws Exception {
-        putTransaction(30L, 1500.0, "rent", null);
+        long id = postTransaction(1500.0, "rent", null);
 
-        mockMvc.perform(get("/transactions/30"))
+        mockMvc.perform(get("/transactions/" + id))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(30))
+                .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.amount").value(1500.0))
                 .andExpect(jsonPath("$.type").value("rent"))
                 .andExpect(jsonPath("$.parent_id").doesNotExist());
@@ -141,11 +153,12 @@ class TransactionControllerIntegrationTest {
 
     @Test
     void getById_shouldIncludeParentIdWhenPresent() throws Exception {
-        putTransaction(31L, 500.0, "food", 30L);
+        long parentId = postTransaction(1500.0, "rent", null);
+        long childId  = postTransaction(500.0, "food", parentId);
 
-        mockMvc.perform(get("/transactions/31"))
+        mockMvc.perform(get("/transactions/" + childId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.parent_id").value(30));
+                .andExpect(jsonPath("$.parent_id").value(parentId));
     }
 
     @Test
@@ -159,15 +172,15 @@ class TransactionControllerIntegrationTest {
 
     @Test
     void getByType_shouldReturnMatchingIds() throws Exception {
-        putTransaction(10L, 500.0, "cars", null);
-        putTransaction(11L, 300.0, "cars", null);
-        putTransaction(12L, 100.0, "food", null);
+        long id1 = postTransaction(500.0, "cars", null);
+        long id2 = postTransaction(300.0, "cars", null);
+        postTransaction(100.0, "food", null);
 
         mockMvc.perform(get("/transactions/types/cars"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[?(@ == 10)]").exists())
-                .andExpect(jsonPath("$[?(@ == 11)]").exists());
+                .andExpect(jsonPath("$[?(@ == " + id1 + ")]").exists())
+                .andExpect(jsonPath("$[?(@ == " + id2 + ")]").exists());
     }
 
     @Test
@@ -181,33 +194,31 @@ class TransactionControllerIntegrationTest {
 
     @Test
     void getSum_shouldReturnAmountForLeafTransaction() throws Exception {
-        putTransaction(20L, 5000.0, "cars", null);
+        long id = postTransaction(5000.0, "cars", null);
 
-        mockMvc.perform(get("/transactions/sum/20"))
+        mockMvc.perform(get("/transactions/sum/" + id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sum").value(5000.0));
     }
 
     @Test
     void getSum_shouldAggregateTransitivelyFromRoot() throws Exception {
-        // 10 (5000) <- 11 (10000) <- 12 (5000)  =>  sum(10) = 20000
-        putTransaction(10L, 5000.0, "cars", null);
-        putTransaction(11L, 10000.0, "shopping", 10L);
-        putTransaction(12L, 5000.0, "shopping", 11L);
+        long id1 = postTransaction(5000.0,  "cars",     null);
+        long id2 = postTransaction(10000.0, "shopping", id1);
+        postTransaction(5000.0,  "shopping", id2);
 
-        mockMvc.perform(get("/transactions/sum/10"))
+        mockMvc.perform(get("/transactions/sum/" + id1))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sum").value(20000.0));
     }
 
     @Test
     void getSum_shouldAggregateTransitivelyFromChild() throws Exception {
-        // sum(11) = 10000 + 5000 = 15000 (does NOT include ancestor 10)
-        putTransaction(10L, 5000.0, "cars", null);
-        putTransaction(11L, 10000.0, "shopping", 10L);
-        putTransaction(12L, 5000.0, "shopping", 11L);
+        long id1 = postTransaction(5000.0,  "cars",     null);
+        long id2 = postTransaction(10000.0, "shopping", id1);
+        postTransaction(5000.0,  "shopping", id2);
 
-        mockMvc.perform(get("/transactions/sum/11"))
+        mockMvc.perform(get("/transactions/sum/" + id2))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sum").value(15000.0));
     }
@@ -221,7 +232,7 @@ class TransactionControllerIntegrationTest {
 
     // --- helper ---
 
-    private void putTransaction(long id, double amount, String type, Long parentId) throws Exception {
+    private long postTransaction(double amount, String type, Long parentId) throws Exception {
         String body = parentId == null
                 ? """
                   {"amount": %s, "type": "%s"}
@@ -230,8 +241,10 @@ class TransactionControllerIntegrationTest {
                   {"amount": %s, "type": "%s", "parent_id": %d}
                   """.formatted(amount, type, parentId);
 
-        mockMvc.perform(put("/transactions/" + id)
+        MvcResult result = mockMvc.perform(post("/transactions")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(body));
+                .content(body))
+                .andReturn();
+        return Long.parseLong(result.getResponse().getContentAsString().replaceAll("[^0-9]", ""));
     }
 }
